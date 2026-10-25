@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>قبائل السداسيات — لعبة استراتيجية</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;font-family:Tahoma,'Segoe UI',sans-serif;background:#1d2733;color:#f2f2f2}
+#topbar{position:fixed;top:0;right:0;left:0;height:52px;background:#101a26;border-bottom:2px solid #d99a06;display:flex;align-items:center;gap:8px;padding:0 10px;z-index:10}
+#topbar .stat{background:#243447;border-radius:8px;padding:5px 10px;font-size:15px;font-weight:bold;white-space:nowrap}
+#topbar .stat b{color:#ffd54a}
+#topbar .spacer{flex:1}
+button{font-family:inherit;cursor:pointer;border:0;border-radius:9px;padding:9px 13px;font-size:15px;font-weight:bold;background:#d99a06;color:#1d2733}
+button:active{transform:scale(.97)}
+button.secondary{background:#33465e;color:#fff}
+button:disabled{opacity:.45;cursor:default}
+#wrap{position:fixed;top:52px;bottom:132px;right:0;left:0}
+#cv{width:100%;height:100%;display:block;touch-action:none;background:#22384f}
+#panel{position:fixed;bottom:0;right:0;left:0;min-height:132px;background:#101a26;border-top:2px solid #d99a06;padding:10px 12px;z-index:10;overflow-y:auto}
+#panel h3{margin:0 0 4px 0;font-size:17px}
+#panel p{margin:3px 0;font-size:14px;line-height:1.6}
+#panel .actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+#panel .actions button{font-size:14px;padding:8px 11px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:50;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:18px 12px}
+.modal.open{display:flex}
+.box{background:#1d2733;border:2px solid #d99a06;border-radius:14px;max-width:560px;width:100%;padding:18px;margin:auto}
+.box h2{margin:0 0 10px 0;color:#ffd54a}
+.box p,.box li{font-size:15px;line-height:1.9}
+.tribe{display:flex;gap:10px;align-items:center;border:2px solid #33465e;border-radius:12px;padding:10px;margin:8px 0;cursor:pointer;background:#243447}
+.tribe.sel{border-color:#ffd54a}
+.tribe .dot{width:34px;height:34px;border-radius:50%;flex-shrink:0}
+.tech{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#243447;border-radius:10px;padding:9px 11px;margin:6px 0}
+.tech .cost{color:#ffd54a;font-weight:bold;white-space:nowrap}
+.tech.done{opacity:.55}
+.zoom{position:fixed;left:10px;bottom:142px;z-index:11;display:flex;flex-direction:column;gap:6px}
+.zoom button{width:44px;height:44px;font-size:22px;padding:0;background:#101a26;color:#fff;border:2px solid #d99a06}
+#msg{position:fixed;top:60px;right:50%;transform:translateX(50%);background:#ffd54a;color:#1d2733;font-weight:bold;padding:8px 16px;border-radius:10px;z-index:40;display:none;max-width:92%;text-align:center}
+</style>
+</head>
+<body>
+<div id="topbar">
+<span class="stat">⭐ <b id="stars">0</b></span>
+<span class="stat">الدور <b id="turn">1</b></span>
+<span class="stat" id="tribeName">—</span>
+<span class="spacer"></span>
+<button class="secondary" id="btnTech">التقنيات</button>
+<button class="secondary" id="btnHelp">مساعدة</button>
+<button id="btnEnd">إنهاء الدور</button>
+</div>
+<div id="wrap"><canvas id="cv"></canvas></div>
+<div class="zoom"><button id="btnZoomIn">+</button><button id="btnZoomOut">−</button></div>
+<div id="panel"><h3 id="panelTitle">مرحباً بك في قبائل السداسيات</h3><p id="panelBody">اختر قبيلتك وابدأ اللعب. اضغط على أي خلية لعرض تفاصيلها.</p><div class="actions" id="panelActions"></div></div>
+<div id="msg"></div>
+
+<div class="modal" id="startModal"><div class="box">
+<h2>قبائل السداسيات</h2>
+<p>لعبة استراتيجية سداسية بنظام الأدوار: ابنِ مدنك، طوّر تقنياتك، درّب جيوشك، واستولِ على عواصم القبائل الثلاث المنافسة. عنوان اللعبة مؤقت — يمكنك تغييره بكلمة واحدة.</p>
+<div id="tribeList"></div>
+<p>مستوى الصعوبة:</p>
+<div class="actions" style="display:flex;gap:8px">
+<button id="btnDiffNormal" class="secondary">عادي</button>
+<button id="btnDiffHard" class="secondary">صعب</button>
+</div>
+<div style="display:flex;gap:8px;margin-top:14px">
+<button id="btnStart" style="flex:1">ابدأ لعبة جديدة</button>
+<button id="btnContinue" class="secondary" style="flex:1;display:none">متابعة اللعبة المحفوظة</button>
+</div>
+</div></div>
+
+<div class="modal" id="techModal"><div class="box">
+<h2>شجرة التقنيات</h2>
+<div id="techList"></div>
+<div style="text-align:center;margin-top:12px"><button class="secondary" onclick="closeModal('techModal')">إغلاق</button></div>
+</div></div>
+
+<div class="modal" id="helpModal"><div class="box">
+<h2>قواعد اللعبة باختصار</h2>
+<ul>
+<li><b>الهدف:</b> الاستيلاء على عواصم القبائل الثلاث المنافسة. إذا سقطت عاصمتك خسرت.</li>
+<li><b>الدخل:</b> كل مدينة تعطي كل دور: 2 + مستوى المدينة + عدد الأسواق فيها، و+1 إذا كانت متصلة بالعاصمة بطريق، و+1 إذا امتلكت تقنية التجارة. (الصعوبة الصعبة تعطي الذكاء +1 لكل مدينة).</li>
+<li><b>النمو:</b> كل مدينة تكسب +1 سكان كل دور + عدد الورش فيها. عند بلوغ عتبات السكان (3، 6، 10، 15) ترتقي المدينة وتختار مكافأة: سوق أو ورشة أو سور أو مخزن أو نصب.</li>
+<li><b>الحصاد:</b> من لوحة الخلية، احصد الموارد في أراضيك: كل مورد يعطي +1 سكان فوراً (+1 إضافي إذا كان مورد قبيلتك المميز). الحصاد مجاني ولمرة واحدة لكل خلية.</li>
+<li><b>القتال:</b> المهاجم ينتصر إذا كان هجومه ≥ دفاع المدافع بعد الإضافات (غابة +1، مدينة +2، سور +2 إضافي). إذا انتصر المشاة دخل الخلية؛ وإذا خسر مات هو. الوحدات البعيدة (رامٍ، منجنيق، سفينة) تهاجم من مسافة دون أن تتحرك. بعد 3 انتصارات تصبح الوحدة مخضرمة (+1 هجوم ودفاع).</li>
+<li><b>المدن:</b> القرى المحايدة تصبح مدنك عندما تدخلها وحدة مشاة. المدن المعادية تُغزى بقتل حاميتها ثم دخولها؛ سقوط العاصمة يقضي على القبيلة كلها.</li>
+<li><b>الطرق:</b> ابنِ طريقاً على أرضك (3 نجوم)؛ أي مدينة متصلة بالعاصمة بسلسلة طرق تكسب +1 نجمة كل دور.</li>
+<li><b>الوحدات البحرية</b> تتحرك في الماء فقط، والبرية في البر فقط، والجبال لا تُعبَر.</li>
+<li><b>الأطلال:</b> ادخلها بوحدة مشاة لتحصل على مكافأة عشوائية: نجوم أو سكان أو خصم على التقنية القادمة.</li>
+</ul>
+<div style="text-align:center"><button class="secondary" onclick="closeModal('techModal');closeModal('helpModal')">إغلاق</button></div>
+</div></div>
+
+<div class="modal" id="levelModal"><div class="box">
+<h2 id="levelTitle">ارتقت مدينتك!</h2>
+<p id="levelText"></p>
+<div id="levelChoices" style="display:flex;flex-direction:column;gap:8px"></div>
+</div></div>
+
+<div class="modal" id="endModal"><div class="box">
+<h2 id="endTitle"></h2>
+<p id="endText"></p>
+<div style="text-align:center"><button onclick="newGameFromUI()">لعبة جديدة</button></div>
+</div></div>
+
+<script>
+'use strict';
+/* ============ بيانات اللعبة (أسماء أصلية من اختراعي) ============ */
+var TRIBES = [
+  {id:'palm', name:'أهل النخيل', color:'#2f9e44', tech:'farm', bonus:'fruit', bonusDesc:'الفاكهة تعطي +1 سكان إضافي عند الحصاد'},
+  {id:'rock', name:'أهل الصخر', color:'#8d6e63', tech:'mine', bonus:'ore', bonusDesc:'الخام يعطي +1 سكان إضافي عند الحصاد'},
+  {id:'wave', name:'أهل الموج', color:'#1976d2', tech:'fish', bonus:'fish', bonusDesc:'السمك يعطي +1 سكان إضافي عند الحصاد'},
+  {id:'sand', name:'أهل الرمال', color:'#d99a06', tech:'hunt', bonus:'game', bonusDesc:'الطرائد تعطي +1 سكان إضافي عند الحصاد'}
+];
+var TECHS = [
+  {id:'farm',  name:'الزراعة',   cost:4, desc:'يسمح بحصاد الفاكهة'},
+  {id:'hunt',  name:'الصيد البري', cost:4, desc:'يسمح بحصاد الطرائد'},
+  {id:'fish',  name:'صيد السمك', cost:4, desc:'يسمح بحصاد السمك'},
+  {id:'mine',  name:'التعدين',   cost:5, desc:'يسمح بحصاد الخام'},
+  {id:'sail',  name:'الإبحار',   cost:5, req:'fish',  desc:'يفتح وحدة القارب'},
+  {id:'nav',   name:'الملاحة',   cost:6, req:'sail',  desc:'يفتح وحدة السفينة'},
+  {id:'roads', name:'الطرق',     cost:4, desc:'يسمح ببناء الطرق'},
+  {id:'trade', name:'التجارة',   cost:6, desc:'+1 نجمة لكل مدينة كل دور'},
+  {id:'ride',  name:'الفروسية',  cost:5, desc:'يفتح وحدة الفارس'},
+  {id:'arch',  name:'الرماية',   cost:5, desc:'يفتح وحدة الرامي'},
+  {id:'sword', name:'السيوف',    cost:6, desc:'يفتح وحدة المبارز'},
+  {id:'siege', name:'المقاليع',  cost:7, req:'sword', desc:'يفتح وحدة المنجنيق'},
+  {id:'walls', name:'الأسوار',   cost:5, desc:'يفتح وحدة المدافع وسور المدينة'}
+];
+var UNITS = {
+  warrior:   {name:'محارب',  cost:2, move:1, atk:2, def:2, range:1, land:true,  letter:'م'},
+  archer:    {name:'رامٍ',    cost:3, move:1, atk:2, def:1, range:2, land:true,  tech:'arch',  letter:'ر'},
+  rider:     {name:'فارس',   cost:3, move:2, atk:2, def:1, range:1, land:true,  tech:'ride',  letter:'ف'},
+  defender:  {name:'مدافع',  cost:3, move:1, atk:1, def:3, range:1, land:true,  tech:'walls', letter:'د'},
+  swordsman: {name:'مبارز',  cost:5, move:1, atk:3, def:3, range:1, land:true,  tech:'sword', letter:'س'},
+  catapult:  {name:'منجنيق', cost:8, move:1, atk:4, def:0, range:3, land:true,  tech:'siege', letter:'ن'},
+  boat:      {name:'قارب',   cost:2, move:2, atk:2, def:2, range:1, water:true, tech:'sail',  letter:'ق'},
+  ship:      {name:'سفينة',  cost:5, move:2, atk:3, def:2, range:2, water:true, tech:'nav',   letter:'ش'}
+};
+var LEVEL_NEED = [0, 3, 6, 10, 15]; // للانتقال من المستوى L إلى L+1 نحتاج LEVEL_NEED[L]
+var MAP_R = 7;
+var DIRS = [[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+function key(q, r){ return q + ',' + r; }
+function hexDist(a, b){ var dq = a.q - b.q, dr = a.r - b.r; return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2; }
+function neighbors(t){ var out = []; for (var i = 0; i < 6; i++){ out.push({q: t.q + DIRS[i][0], r: t.r + DIRS[i][1]}); } return out; }
+function tribeById(id){ for (var i = 0; i < TRIBES.length; i++) if (TRIBES[i].id === id) return TRIBES[i]; return null; }
+function techById(id){ for (var i = 0; i < TECHS.length; i++) if (TECHS[i].id === id) return TECHS[i]; return null; }
+function unitAtk(u){ return UNITS[u.type].atk + (u.vet ? 1 : 0); }
+function unitDef(u){ return UNITS[u.type].def + (u.vet ? 1 : 0); }
+
+/* ============ توليد الخريطة ============ */
+function generateMap(){
+  for (var attempt = 0; attempt < 30; attempt++){
+    var tiles = {};
+    var noise = {};
+    for (var q = -MAP_R; q <= MAP_R; q++) for (var r = -MAP_R; r <= MAP_R; r++){
+      if (Math.abs(q + r) > MAP_R) continue;
+      noise[key(q, r)] = Math.random();
+    }
+    var landCount = 0, total = 0;
+    for (var k in noise){
+      var parts = k.split(','); var qq = +parts[0], rr = +parts[1];
+      var d = hexDist({q: qq, r: rr}, {q: 0, r: 0});
+      var sm = noise[k], n = 0;
+      var nb = neighbors({q: qq, r: rr});
+      for (var i = 0; i < 6; i++){ var nk = key(nb[i].q, nb[i].r); if (noise[nk] !== undefined){ sm += noise[nk]; n++; } }
+      sm = sm / (n + 1);
+      var base = sm + 0.38 * (1 - d / (MAP_R + 1));
+      var land = base > 0.62;
+      var terrain = 'water';
+      if (land) terrain = (sm > 0.80) ? 'mountain' : (Math.random() < 0.45 ? 'forest' : 'plains');
+      tiles[k] = {q: qq, r: rr, terrain: terrain, owner: null, cityId: null, village: false, ruin: false, resource: null, harvested: false, road: false, unitId: null};
+      total++; if (land) landCount++;
+    }
+    if (landCount / total < 0.45 || landCount / total > 0.72) continue;
+    // موارد
+    for (var k2 in tiles){
+      var t = tiles[k2];
+      if (t.terrain === 'plains' && Math.random() < 0.14) t.resource = 'fruit';
+      else if (t.terrain === 'forest' && Math.random() < 0.14) t.resource = 'game';
+      else if (t.terrain === 'mountain' && Math.random() < 0.22) t.resource = 'ore';
+      else if (t.terrain === 'water'){
+        var adjLand = false;
+        var nb2 = neighbors(t);
+        for (var j = 0; j < 6; j++){ var at = tiles[key(nb2[j].q, nb2[j].r)]; if (at && at.terrain !== 'water'){ adjLand = true; break; } }
+        if (adjLand && Math.random() < 0.12) t.resource = 'fish';
+      }
+    }
+    // عواصم متباعدة
+    var landTiles = [];
+    for (var k3 in tiles) if (tiles[k3].terrain !== 'water' && tiles[k3].terrain !== 'mountain') landTiles.push(tiles[k3]);
+    var caps = [];
+    for (var c = 0; c < 4; c++){
+      var best = null, bestScore = -1;
+      for (var t2 = 0; t2 < landTiles.length; t2++){
+        var cand = landTiles[t2];
+        var mind = 99;
+        for (var c2 = 0; c2 < caps.length; c2++) mind = Math.min(mind, hexDist(cand, caps[c2]));
+        if (caps.length && mind < 5) continue;
+        var score = mind + Math.random() * 2;
+        if (score > bestScore){ bestScore = score; best = cand; }
+      }
+      if (!best) break;
+      caps.push(best);
+    }
+    if (caps.length < 4) continue;
+    // قرى محايدة وأطلال
+    var villages = 0, ruins = 0;
+    var shuffled = landTiles.slice();
+    for (var s = shuffled.length - 1; s > 0; s--){ var jx = Math.floor(Math.random() * (s + 1)); var tmp = shuffled[s]; shuffled[s] = shuffled[jx]; shuffled[jx] = tmp; }
+    for (var v = 0; v < shuffled.length && villages < 7; v++){
+      var vt = shuffled[v];
+      if (vt.cityId) continue;
+      var ok = true;
+      for (var c3 = 0; c3 < caps.length; c3++) if (hexDist(vt, caps[c3]) < 3) ok = false;
+      if (!ok) continue;
+      vt.village = true; villages++;
+    }
+    for (var v2 = 0; v2 < shuffled.length && ruins < 6; v2++){
+      var rt = shuffled[v2];
+      if (rt.cityId || rt.village) continue;
+      var ok2 = true;
+      for (var c4 = 0; c4 < caps.length; c4++) if (hexDist(rt, caps[c4]) < 2) ok2 = false;
+      if (!ok2) continue;
+      rt.ruin = true; ruins++;
+    }
+    if (villages < 5 || ruins < 4) continue;
+    return {tiles: tiles, capitals: caps};
+  }
+  return null;
+}
+
+/* ============ حالة اللعبة ============ */
+var S = null;
+function newGame(tribeId, difficulty){
+  var gen = generateMap();
+  if (!gen) gen = generateMap();
+  var cities = [], units = [], nextCity = 1, nextUnit = 1;
+  var tribes = [];
+  for (var i = 0; i < TRIBES.length; i++){
+    tribes.push({id: TRIBES[i].id, stars: 8, techs: [TRIBES[i].tech], kills: 0, discount: 0, alive: true, isAI: TRIBES[i].id !== tribeId});
+  }
+  for (var c = 0; c < 4; c++){
+    var cap = gen.capitals[c];
+    var tid = TRIBES[c].id;
+    var city = {id: nextCity++, tribe: tid, q: cap.q, r: cap.r, level: 1, pop: 0, capital: true, markets: 0, workshops: 0, wall: false, connected: true};
+    cities.push(city);
+    cap.cityId = city.id; cap.owner = tid;
+    claimAround(gen.tiles, city);
+    var st = tribes[c];
+    var u = {id: nextUnit++, tribe: tid, type: 'warrior', q: cap.q, r: cap.r, move: 0, kills: 0, vet: false};
+    units.push(u);
+    cap.unitId = u.id;
+  }
+  S = {tiles: gen.tiles, cities: cities, units: units, tribes: tribes, turn: 1, player: tribeId, difficulty: difficulty || 'normal', selected: null, selUnit: null, pendingLevels: [], over: false, nextCity: nextCity, nextUnit: nextUnit};
+  startTribeTurn(tribeId);
+  saveGame();
+  return S;
+}
+function claimAround(tiles, city){
+  var rad = city.level >= 3 ? 2 : 1;
+  for (var k in tiles){
+    var t = tiles[k];
+    if (hexDist(t, city) <= rad && !t.cityId && !t.village && t.owner === null) t.owner = city.tribe;
+  }
+}
+function tribeState(id){ for (var i = 0; i < S.tribes.length; i++) if (S.tribes[i].id === id) return S.tribes[i]; return null; }
+function cityAt(q, r){ for (var i = 0; i < S.cities.length; i++) if (S.cities[i].q === q && S.cities[i].r === r) return S.cities[i]; return null; }
+function unitById(id){ for (var i = 0; i < S.units.length; i++) if (S.units[i].id === id) return S.units[i]; return null; }
+function tileAt(q, r){ return S.tiles[key(q, r)] || null; }
+function citiesOf(tribe){ var out = []; for (var i = 0; i < S.cities.length; i++) if (S.cities[i].tribe === tribe) out.push(S.cities[i]); return out; }
+function unitsOf(tribe){ var out = []; for (var i = 0; i < S.units.length; i++) if (S.units[i].tribe === tribe) out.push(S.units[i]); return out; }
+function capitalOf(tribe){ var cs = citiesOf(tribe); for (var i = 0; i < cs.length; i++) if (cs[i].capital) return cs[i]; return null; }
+
+/* ============ اتصال الطرق ============ */
+function updateConnections(tribe){
+  var cap = capitalOf(tribe);
+  var cs = citiesOf(tribe);
+  for (var i = 0; i < cs.length; i++) cs[i].connected = false;
+  if (!cap) return;
+  cap.connected = true;
+  var seen = {}; seen[key(cap.q, cap.r)] = true;
+  var queue = [cap];
+  while (queue.length){
+    var cur = queue.shift();
+    var nb = neighbors(cur);
+    for (var j = 0; j < nb.length; j++){
+      var t = tileAt(nb[j].q, nb[j].r);
+      if (!t || t.owner !== tribe) continue;
+      var k = key(t.q, t.r);
+      if (seen[k]) continue;
+      if (!t.road && !t.cityId) continue;
+      seen[k] = true;
+      queue.push(t);
+      var c = cityAt(t.q, t.r);
+      if (c && c.tribe === tribe) c.connected = true;
+    }
+  }
+}
+function cityIncome(city){
+  var ts = tribeState(city.tribe);
+  var inc = 2 + city.level + city.markets;
+  if (city.connected && !city.capital) inc += 1;
+  if (ts && ts.techs.indexOf('trade') >= 0) inc += 1;
+  if (ts && ts.isAI && S.difficulty === 'hard') inc += 1;
+  return inc;
+}
+
+/* ============ قتال ============ */
+function defenseValue(tile, defUnit){
+  var v = 0;
+  if (tile.terrain === 'forest') v += 1;
+  if (tile.cityId){
+    var c = cityAt(tile.q, tile.r);
+    v += 2;
+    if (c && c.wall) v += 2;
+  }
+  if (defUnit) v += unitDef(defUnit);
+  else if (tile.cityId) v += 2;
+  return v;
+}
+function resolveCombat(att, tile){
+  var defUnit = tile.unitId ? unitById(tile.unitId) : null;
+  var defCity = tile.cityId ? cityAt(tile.q, tile.r) : null;
+  var dv = defenseValue(tile, defUnit);
+  var av = unitAtk(att);
+  var log = null;
+  if (av >= dv){
+    // المهاجم ينتصر
+    if (defUnit){
+      removeUnit(defUnit);
+      att.kills++;
+      if (att.kills >= 3) att.vet = true;
+      var ts = tribeState(att.tribe);
+      if (ts) ts.kills++;
+    }
+    // الاستيلاء على المدينة يتم عند الدخول الفعلي (مشاة فقط)، لا بالهجوم البعيد
+    void defCity;
+    if (tile.village && !defCity){
+      tile.village = false;
+      var nc = {id: S.nextCity++, tribe: att.tribe, q: tile.q, r: tile.r, level: 1, pop: 0, capital: false, markets: 0, workshops: 0, wall: false, connected: false};
+      S.cities.push(nc);
+      tile.cityId = nc.id; tile.owner = att.tribe;
+      claimAround(S.tiles, nc);
+      log = 'village';
+    }
+    if (tile.ruin){
+      tile.ruin = false;
+      applyRuinReward(att.tribe);
+      log = log || 'ruin';
+    }
+    return {win: true, log: log};
+  } else {
+    removeUnit(att);
+    return {win: false, log: null};
+  }
+}
+function removeUnit(u){
+  var t = tileAt(u.q, u.r);
+  if (t && t.unitId === u.id) t.unitId = null;
+  for (var i = 0; i < S.units.length; i++) if (S.units[i].id === u.id){ S.units.splice(i, 1); break; }
+}
+function captureCity(city, newTribe){
+  var oldTribe = city.tribe;
+  city.tribe = newTribe;
+  var t = tileAt(city.q, city.r);
+  if (t) t.owner = newTribe;
+  claimAround(S.tiles, city);
+  if (city.capital){
+    // القضاء على القبيلة: وحداتها تزول ومدنها الأخرى تصبح قرى محايدة
+    var us = unitsOf(oldTribe).slice();
+    for (var i = 0; i < us.length; i++) removeUnit(us[i]);
+    var cs = citiesOf(oldTribe).slice();
+    for (var j = 0; j < cs.length; j++){
+      if (cs[j].id === city.id) continue;
+      var ct = tileAt(cs[j].q, cs[j].r);
+      if (ct){ ct.cityId = null; ct.village = true; ct.owner = null; }
+      for (var k = 0; k < S.cities.length; k++) if (S.cities[k].id === cs[j].id){ S.cities.splice(k, 1); break; }
+    }
+    var ots = tribeState(oldTribe);
+    if (ots) ots.alive = false;
+    // تحويل العاصمة نفسها إلى مدينة عادية للمنتصر
+    city.capital = false;
+  }
+  updateConnections(newTribe);
+  updateConnections(oldTribe);
+}
+function applyRuinReward(tribeId){
+  var ts = tribeState(tribeId);
+  var roll = Math.random();
+  if (roll < 0.4){ ts.stars += 5; }
+  else if (roll < 0.7){
+    var cs = citiesOf(tribeId);
+    if (cs.length) cs[0].pop += 3;
+  } else { ts.discount = 2; }
+}
+function checkEnd(){
+  if (S.over) return null;
+  var playerAlive = tribeState(S.player) && tribeState(S.player).alive;
+  var cap = capitalOf(S.player);
+  if (!playerAlive || !cap) { S.over = true; return {win: false}; }
+  var allDead = true;
+  for (var i = 0; i < S.tribes.length; i++){
+    if (S.tribes[i].id !== S.player && S.tribes[i].alive) allDead = false;
+  }
+  if (allDead){ S.over = true; return {win: true}; }
+  return null;
+}
+function computeScore(tribeId){
+  var cs = citiesOf(tribeId).length;
+  var ts = tribeState(tribeId);
+  var lv = 0;
+  var all = citiesOf(tribeId);
+  for (var i = 0; i < all.length; i++) lv += all[i].level;
+  return cs * 20 + (ts ? ts.techs.length * 10 : 0) + (ts ? ts.kills * 5 : 0) + lv * 5;
+}
+
+/* ============ أفعال اللاعب ============ */
+function canPass(unit, tile){
+  if (!tile) return false;
+  var u = UNITS[unit.type];
+  if (u.water) return tile.terrain === 'water';
+  if (tile.terrain === 'water' || tile.terrain === 'mountain') return false;
+  return true;
+}
+function tryMoveUnit(unit, tile){
+  if (S.over) return false;
+  if (unit.move <= 0) return false;
+  if (hexDist(unit, tile) !== 1) return false;
+  if (!canPass(unit, tile)) return false;
+  if (tile.unitId){
+    var other = unitById(tile.unitId);
+    if (other.tribe === unit.tribe) return false;
+    // هجوم مشاة على وحدة معادية
+    if (UNITS[unit.type].range > 1) return false;
+    var res = resolveCombat(unit, tile);
+    unit.move = 0;
+    if (res.win && unitById(unit.id)){
+      moveUnitTo(unit, tile);
+      var cc = tile.cityId ? cityAt(tile.q, tile.r) : null;
+      if (cc && cc.tribe !== unit.tribe) captureCity(cc, unit.tribe);
+    }
+    afterAction();
+    return true;
+  }
+  if (tile.cityId){
+    var c = cityAt(tile.q, tile.r);
+    if (c.tribe === unit.tribe){
+      moveUnitTo(unit, tile);
+      unit.move--;
+      afterAction();
+      return true;
+    }
+    if (UNITS[unit.type].range > 1) return false;
+    var res2 = resolveCombat(unit, tile);
+    unit.move = 0;
+    if (res2.win && unitById(unit.id)){
+      moveUnitTo(unit, tile);
+      var cc2 = cityAt(tile.q, tile.r);
+      if (cc2 && cc2.tribe !== unit.tribe) captureCity(cc2, unit.tribe);
+    }
+    afterAction();
+    return true;
+  }
+  // خلية عادية أو قرية أو أطلال
+  var from = tileAt(unit.q, unit.r);
+  if (from) from.unitId = null;
+  var wasVillage = tile.village, wasRuin = tile.ruin;
+  moveUnitTo(unit, tile);
+  unit.move--;
+  if (wasVillage || wasRuin){
+    // الالتقاط والمكافأة فقط؛ لا قتال على خلية فارغة
+    var res3 = resolveCombat(unit, tile);
+    void res3;
+  }
+  if (tile.terrain !== 'water') tile.owner = tile.owner || unit.tribe;
+  afterAction();
+  return true;
+}
+function moveUnitTo(unit, tile){
+  var from = tileAt(unit.q, unit.r);
+  if (from && from.unitId === unit.id) from.unitId = null;
+  unit.q = tile.q; unit.r = tile.r;
+  tile.unitId = unit.id;
+}
+function tryRangedAttack(unit, tile){
+  if (S.over) return false;
+  if (unit.move <= 0) return false;
+  var u = UNITS[unit.type];
+  if (u.range <= 1) return false;
+  if (hexDist(unit, tile) > u.range) return false;
+  if (!tile.unitId && !tile.cityId) return false;
+  var target = tile.unitId ? unitById(tile.unitId) : null;
+  if (target && target.tribe === unit.tribe) return false;
+  if (tile.cityId){
+    var c = cityAt(tile.q, tile.r);
+    if (c.tribe === unit.tribe) return false;
+  }
+  var res = resolveCombat(unit, tile);
+  unit.move = 0;
+  afterAction();
+  return true;
+}
+function trainUnit(city, typeId){
+  var ts = tribeState(city.tribe);
+  var u = UNITS[typeId];
+  if (!ts || ts.stars < u.cost) return false;
+  if (u.tech && ts.techs.indexOf(u.tech) < 0) return false;
+  var ct = tileAt(city.q, city.r);
+  var dest = null;
+  if (!ct.unitId) dest = ct;
+  else {
+    var nb = neighbors(city);
+    for (var i = 0; i < nb.length; i++){
+      var t = tileAt(nb[i].q, nb[i].r);
+      if (t && !t.unitId && t.owner === city.tribe && canPass({type: typeId}, t)){ dest = t; break; }
+    }
+    if (!dest) return false;
+  }
+  ts.stars -= u.cost;
+  var nu = {id: S.nextUnit++, tribe: city.tribe, type: typeId, q: dest.q, r: dest.r, move: 0, kills: 0, vet: false};
+  S.units.push(nu);
+  dest.unitId = nu.id;
+  afterAction();
+  return true;
+}
+function harvestTile(tile){
+  if (!tile.resource || tile.harvested) return false;
+  var ts = tribeState(S.player);
+  var techNeed = {fruit: 'farm', game: 'hunt', fish: 'fish', ore: 'mine'}[tile.resource];
+  if (ts.techs.indexOf(techNeed) < 0) return false;
+  if (tile.owner !== S.player) return false;
+  tile.harvested = true;
+  var gain = 1;
+  var tr = tribeById(S.player);
+  if (tr && tr.bonus === tile.resource) gain += 1;
+  // السكان لأقرب مدينة من نفس القبيلة
+  var best = null, bd = 99;
+  var cs = citiesOf(S.player);
+  for (var i = 0; i < cs.length; i++){ var d = hexDist(tile, cs[i]); if (d < bd){ bd = d; best = cs[i]; } }
+  if (best) best.pop += gain;
+  afterAction();
+  return true;
+}
+function buildRoad(tile){
+  var ts = tribeState(S.player);
+  if (ts.techs.indexOf('roads') < 0) return false;
+  if (tile.owner !== S.player || tile.road || tile.cityId) return false;
+  if (tile.terrain === 'water' || tile.terrain === 'mountain') return false;
+  if (ts.stars < 3) return false;
+  ts.stars -= 3;
+  tile.road = true;
+  updateConnections(S.player);
+  afterAction();
+  return true;
+}
+function researchTech(techId){
+  var ts = tribeState(S.player);
+  var t = techById(techId);
+  if (!t || ts.techs.indexOf(techId) >= 0) return false;
+  if (t.req && ts.techs.indexOf(t.req) < 0) return false;
+  var cost = Math.max(0, t.cost - (ts.discount || 0));
+  if (ts.stars < cost) return false;
+  ts.stars -= cost;
+  ts.discount = 0;
+  ts.techs.push(techId);
+  afterAction();
+  return true;
+}
+function applyLevelReward(city, reward){
+  if (reward === 'market') city.markets++;
+  else if (reward === 'workshop') city.workshops++;
+  else if (reward === 'wall') city.wall = true;
+  else if (reward === 'granary') city.pop += 3;
+  // monument: نقاط فقط عند النهاية
+  if (reward === 'wall') updateConnections(city.tribe);
+  saveGame();
+}
+function levelChoices(city){
+  var opts = [
+    {id: 'market', name: 'سوق', desc: '+1 نجمة كل دور'},
+    {id: 'workshop', name: 'ورشة', desc: '+1 سكان كل دور'}
+  ];
+  if (!city.wall) opts.push({id: 'wall', name: 'سور', desc: '+2 دفاع للمدينة'});
+  else opts.push({id: 'granary', name: 'مخزن', desc: '+3 سكان فوراً'});
+  return opts;
+}
+function growTribe(tribeId){
+  var ts = tribeState(tribeId);
+  var cs = citiesOf(tribeId);
+  for (var i = 0; i < cs.length; i++){
+    var c = cs[i];
+    c.pop += 1 + c.workshops;
+    while (c.level < 5 && c.pop >= LEVEL_NEED[c.level]){
+      c.pop -= LEVEL_NEED[c.level];
+      c.level++;
+      claimAround(S.tiles, c);
+      if (tribeId === S.player) S.pendingLevels.push(c.id);
+      else {
+        var ch = levelChoices(c);
+        applyLevelReward(c, ch[0].id);
+      }
+    }
+  }
+  var income = 0;
+  for (var j = 0; j < cs.length; j++) income += cityIncome(cs[j]);
+  ts.stars += income;
+}
+function startTribeTurn(tribeId){
+  var us = unitsOf(tribeId);
+  for (var i = 0; i < us.length; i++) us[i].move = UNITS[us[i].type].move;
+}
+function afterAction(){
+  var end = checkEnd();
+  saveGame();
+  if (typeof document !== 'undefined'){ refreshUI(); draw(); if (end) showEnd(end.win); }
+}
+
+/* ============ الذكاء الاصطناعي ============ */
+function aiTakeTurn(tribeId){
+  var ts = tribeState(tribeId);
+  if (!ts || !ts.alive) return;
+  startTribeTurn(tribeId);
+  growTribe(tribeId);
+  updateConnections(tribeId);
+  // بحث: الأرخص المتاح (الصعب: الأغلى المتاح)
+  var afford = [];
+  for (var i = 0; i < TECHS.length; i++){
+    var t = TECHS[i];
+    if (ts.techs.indexOf(t.id) >= 0) continue;
+    if (t.req && ts.techs.indexOf(t.req) < 0) continue;
+    var cost = Math.max(0, t.cost - (ts.discount || 0));
+    if (ts.stars >= cost) afford.push({t: t, cost: cost});
+  }
+  if (afford.length){
+    afford.sort(function(a, b){ return S.difficulty === 'hard' ? b.cost - a.cost : a.cost - b.cost; });
+    var pick = afford[0];
+    ts.stars -= pick.cost;
+    ts.discount = 0;
+    ts.techs.push(pick.t.id);
+  }
+  // حصاد في الأراضي
+  var myTiles = [];
+  for (var k in S.tiles){ var tt = S.tiles[k]; if (tt.owner === tribeId && tt.resource && !tt.harvested) myTiles.push(tt); }
+  for (var h = 0; h < myTiles.length; h++){
+    var ht = myTiles[h];
+    var need = {fruit: 'farm', game: 'hunt', fish: 'fish', ore: 'mine'}[ht.resource];
+    if (ts.techs.indexOf(need) < 0) continue;
+    ht.harvested = true;
+    var gain = 1;
+    var tr = tribeById(tribeId);
+    if (tr && tr.bonus === ht.resource) gain += 1;
+    var cs = citiesOf(tribeId), best = null, bd = 99;
+    for (var ci = 0; ci < cs.length; ci++){ var d = hexDist(ht, cs[ci]); if (d < bd){ bd = d; best = cs[ci]; } }
+    if (best) best.pop += gain;
+  }
+  // طرق نحو العاصمة
+  if (ts.techs.indexOf('roads') >= 0){
+    var cap = capitalOf(tribeId);
+    var allCities = citiesOf(tribeId);
+    for (var ci2 = 0; ci2 < allCities.length; ci2++){
+      var c = allCities[ci2];
+      if (c.capital || c.connected) continue;
+      var path = findPath(c, cap, tribeId);
+      if (path && path.length > 1 && ts.stars >= 3){
+        var step = path[1];
+        if (!step.road && !step.cityId && step.terrain !== 'water' && step.terrain !== 'mountain'){
+          step.road = true;
+          ts.stars -= 3;
+        }
+      }
+    }
+    updateConnections(tribeId);
+  }
+  // تدريب وحدات
+  var trainOrder = ['warrior', 'archer', 'rider', 'defender', 'swordsman', 'catapult', 'boat', 'ship'];
+  var cities = citiesOf(tribeId);
+  for (var ci3 = 0; ci3 < cities.length; ci3++){
+    var city = cities[ci3];
+    for (var uo = 0; uo < trainOrder.length; uo++){
+      var ut = trainOrder[uo];
+      var udef = UNITS[ut];
+      if (udef.tech && ts.techs.indexOf(udef.tech) < 0) continue;
+      if (ts.stars < udef.cost) continue;
+      if (Math.random() < 0.35) continue;
+      var ct = tileAt(city.q, city.r);
+      var dest = null;
+      if (!ct.unitId) dest = ct;
+      else {
+        var nb = neighbors(city);
+        for (var ni = 0; ni < nb.length; ni++){
+          var t2 = tileAt(nb[ni].q, nb[ni].r);
+          if (t2 && !t2.unitId && t2.owner === tribeId && canPass({type: ut}, t2)){ dest = t2; break; }
+        }
+      }
+      if (!dest) continue;
+      ts.stars -= udef.cost;
+      var nu = {id: S.nextUnit++, tribe: tribeId, type: ut, q: dest.q, r: dest.r, move: 0, kills: 0, vet: false};
+      S.units.push(nu);
+      dest.unitId = nu.id;
+      break;
+    }
+  }
+  // تحرك الوحدات والقتال
+  var myUnits = unitsOf(tribeId).slice();
+  for (var ui = 0; ui < myUnits.length; ui++){
+    var u = myUnits[ui];
+    if (!unitById(u.id)) continue;
+    var guard = 0;
+    while (u.move > 0 && guard++ < 12){
+      if (!unitById(u.id)) break;
+      if (aiTryAttack(u)) continue;
+      if (!aiStepTowardGoal(u)) break;
+    }
+  }
+  var end = checkEnd();
+  if (end && typeof document !== 'undefined') showEnd(end.win);
+}
+function findPath(from, to, tribeId){
+  // BFS على الأراضي المملوكة للقبيلة (لأي تضاريس برية) — يستخدم لبناء الطرق
+  var prev = {}, seen = {};
+  seen[key(from.q, from.r)] = true;
+  var queue = [from];
+  while (queue.length){
+    var cur = queue.shift();
+    if (cur.q === to.q && cur.r === to.r){
+      var path = [cur], ck = key(cur.q, cur.r);
+      while (prev[ck]){ cur = prev[ck]; path.unshift(cur); ck = key(cur.q, cur.r); }
+      return path;
+    }
+    var nb = neighbors(cur);
+    for (var i = 0; i < nb.length; i++){
+      var t = tileAt(nb[i].q, nb[i].r);
+      if (!t || t.owner !== tribeId) continue;
+      if (t.terrain === 'water' || t.terrain === 'mountain') continue;
+      var k = key(t.q, t.r);
+      if (seen[k]) continue;
+      seen[k] = true;
+      prev[k] = cur;
+      queue.push(t);
+    }
+  }
+  return null;
+}
+function aiTryAttack(u){
+  var ud = UNITS[u.type];
+  var best = null, bestScore = -1;
+  var targets = [];
+  if (ud.range <= 1){
+    var nb = neighbors(u);
+    for (var i = 0; i < nb.length; i++){
+      var t = tileAt(nb[i].q, nb[i].r);
+      if (t && (t.unitId || t.cityId)) targets.push(t);
+    }
+  } else {
+    for (var k in S.tiles){
+      var t2 = S.tiles[k];
+      if (hexDist(u, t2) <= ud.range && (t2.unitId || t2.cityId)) targets.push(t2);
+    }
+  }
+  for (var ti = 0; ti < targets.length; ti++){
+    var t = targets[ti];
+    var tu = t.unitId ? unitById(t.unitId) : null;
+    if (tu && tu.tribe === u.tribe) continue;
+    var tc = t.cityId ? cityAt(t.q, t.r) : null;
+    if (tc && tc.tribe === u.tribe) continue;
+    var dv = defenseValue(t, tu);
+    var av = unitAtk(u);
+    var threshold = (S.difficulty === 'hard') ? dv - 1 : dv;
+    if (av < threshold) continue;
+    var score = 0;
+    if (tc) score = tc.capital ? 200 : 100 + tc.level * 10;
+    else if (tu) score = (UNITS[tu.type].atk + UNITS[tu.type].def) * 10;
+    if (score > bestScore){ bestScore = score; best = t; }
+  }
+  if (!best) return false;
+  if (ud.range <= 1){
+    var res = resolveCombat(u, best);
+    u.move = 0;
+    if (res.win && unitById(u.id)){
+      moveUnitTo(u, best);
+      var cc = best.cityId ? cityAt(best.q, best.r) : null;
+      if (cc && cc.tribe !== u.tribe) captureCity(cc, u.tribe);
+    }
+  } else {
+    resolveCombat(u, best);
+    u.move = 0;
+  }
+  return true;
+}
+function aiStepTowardGoal(u){
+  // أقرب هدف: قرية محايدة، أطلال، مدينة معادية، وحدة معادية
+  var goals = [];
+  for (var k in S.tiles){
+    var t = S.tiles[k];
+    if (t.village) goals.push({t: t, w: 0});
+    else if (t.ruin) goals.push({t: t, w: 1});
+    else if (t.cityId){ var c = cityAt(t.q, t.r); if (c.tribe !== u.tribe) goals.push({t: t, w: 2}); }
+    else if (t.unitId){ var eu = unitById(t.unitId); if (eu.tribe !== u.tribe) goals.push({t: t, w: 3}); }
+  }
+  if (!goals.length) return false;
+  var nb = neighbors(u);
+  var bestTile = null, bestVal = 1e9;
+  for (var i = 0; i < nb.length; i++){
+    var t = nb[i];
+    var tile = tileAt(t.q, t.r);
+    if (!tile || !canPass(u, tile)) continue;
+    if (tile.unitId) continue;
+    if (tile.cityId){ var c2 = cityAt(t.q, t.r); if (c2.tribe === u.tribe && tile.unitId) continue; }
+    var val = 1e9;
+    for (var g = 0; g < goals.length; g++){
+      var d = hexDist(tile, goals[g].t) + goals[g].w * 0.5;
+      if (d < val) val = d;
+    }
+    if (val < bestVal){ bestVal = val; bestTile = tile; }
+  }
+  if (!bestTile) return false;
+  var curD = 1e9;
+  for (var g2 = 0; g2 < goals.length; g2++){ var d2 = hexDist(u, goals[g2].t); if (d2 < curD) curD = d2; }
+  if (bestVal >= curD && !bestTile.village && !bestTile.ruin) return false;
+  var from = tileAt(u.q, u.r);
+  if (from) from.unitId = null;
+  var wasVillage = bestTile.village, wasRuin = bestTile.ruin;
+  moveUnitTo(u, bestTile);
+  u.move--;
+  if (wasVillage || wasRuin) resolveCombat(u, bestTile);
+  if (bestTile.terrain !== 'water') bestTile.owner = bestTile.owner || u.tribe;
+  return true;
+}
+
+/* ============ تدفق الأدوار والحفظ ============ */
+function endTurn(){
+  if (S.over) return;
+  S.selected = null; S.selUnit = null;
+  for (var i = 0; i < S.tribes.length; i++){
+    var tr = S.tribes[i];
+    if (tr.id !== S.player && tr.alive) aiTakeTurn(tr.id);
+    if (S.over) break;
+  }
+  if (S.over) return;
+  S.turn++;
+  growTribe(S.player);
+  startTribeTurn(S.player);
+  updateConnections(S.player);
+  var end = checkEnd();
+  saveGame();
+  if (typeof document !== 'undefined'){
+    refreshUI(); draw();
+    if (S.pendingLevels.length) showNextLevel();
+    else if (end) showEnd(end.win);
+  }
+}
+function showNextLevel(){
+  var cid = S.pendingLevels.shift();
+  var c = null;
+  for (var i = 0; i < S.cities.length; i++) if (S.cities[i].id === cid) c = S.cities[i];
+  if (!c){ if (S.pendingLevels.length) showNextLevel(); return; }
+  var ch = levelChoices(c);
+  var el = document.getElementById('levelChoices');
+  document.getElementById('levelTitle').textContent = 'ارتقت مدينة ' + (c.capital ? 'عاصمتك' : 'جديدة') + ' إلى المستوى ' + c.level + '!';
+  document.getElementById('levelText').textContent = 'اختر مكافأة الارتقاء:';
+  el.innerHTML = '';
+  ch.forEach(function(o){
+    var b = document.createElement('button');
+    b.textContent = o.name + ' — ' + o.desc;
+    b.onclick = function(){
+      applyLevelReward(c, o.id);
+      closeModal('levelModal');
+      if (S.pendingLevels.length) showNextLevel();
+      refreshUI(); draw();
+    };
+    el.appendChild(b);
+  });
+  openModal('levelModal');
+}
+function showEnd(win){
+  var t = document.getElementById('endTitle');
+  var x = document.getElementById('endText');
+  var sc = computeScore(S.player);
+  if (win){
+    t.textContent = 'النصر! سقطت كل العواصم';
+    x.textContent = 'أنهيت اللعبة في ' + S.turn + ' دوراً. نقاطك: ' + sc + ' (مدن ×20 + تقنيات ×10 + انتصارات ×5 + مستويات ×5).';
+  } else {
+    t.textContent = 'سقطت عاصمتك... هزيمة';
+    x.textContent = 'صمدت ' + S.turn + ' دوراً. نقاطك: ' + sc + '. جرّب قبيلة أخرى أو مستوى مختلفاً.';
+  }
+  try{ localStorage.removeItem('tribes_save_v1'); }catch(e){}
+  openModal('endModal');
+}
+function saveGame(){
+  try{
+    var copy = {tiles: S.tiles, cities: S.cities, units: S.units, tribes: S.tribes, turn: S.turn, player: S.player, difficulty: S.difficulty, selected: null, selUnit: null, pendingLevels: [], over: S.over, nextCity: S.nextCity, nextUnit: S.nextUnit};
+    localStorage.setItem('tribes_save_v1', JSON.stringify(copy));
+  }catch(e){}
+}
+function loadGame(){
+  try{
+    var raw = localStorage.getItem('tribes_save_v1');
+    if (!raw) return null;
+    var d = JSON.parse(raw);
+    if (!d || !d.tiles || d.over) return null;
+    return d;
+  }catch(e){ return null; }
+}
+
+/* ============ الرسم والتفاعل (المتصفح فقط) ============ */
+var cv = null, ctx = null;
+var cam = {x: 0, y: 0, zoom: 1};
+var HEX = 26;
+var pointers = {};
+var downPos = null, dragged = false, lastPinch = 0;
+var TERRAIN_AR = {water: 'ماء', plains: 'سهل', forest: 'غابة', mountain: 'جبل'};
+var RES_AR = {fruit: 'فاكهة', game: 'طرائد', fish: 'سمك', ore: 'خام'};
+var TERRAIN_COL = {water: '#4a90d9', plains: '#9ccc65', forest: '#43a047', mountain: '#90a4ae'};
+function hexCorners(cx, cy, s){
+  var pts = [];
+  for (var i = 0; i < 6; i++){
+    var a = Math.PI / 180 * (60 * i - 30);
+    pts.push([cx + s * Math.cos(a), cy + s * Math.sin(a)]);
+  }
+  return pts;
+}
+function tileCenter(t){
+  var s = HEX * cam.zoom;
+  return {x: cam.x + s * Math.sqrt(3) * (t.q + t.r / 2), y: cam.y + s * 1.5 * t.r};
+}
+function pixelToHex(px, py){
+  var s = HEX * cam.zoom;
+  var wx = (px - cam.x) / s, wy = (py - cam.y) / s;
+  var r = wy / 1.5;
+  var q = wx / Math.sqrt(3) - r / 2;
+  var x = q, z = r, y = -q - r;
+  var rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+  var dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+  if (dx > dy && dx > dz) rx = -ry - rz;
+  else if (dy > dz) ry = -rx - rz;
+  else rz = -rx - ry;
+  return {q: rx, r: rz};
+}
+function draw(){
+  if (!ctx || !S) return;
+  var W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#22384f';
+  ctx.fillRect(0, 0, W, H);
+  var s = HEX * cam.zoom;
+  var selTile = S.selected ? tileAt(S.selected.q, S.selected.r) : null;
+  var selUnit = S.selUnit ? unitById(S.selUnit) : null;
+  var reach = {}, attack = {};
+  if (selUnit && selUnit.tribe === S.player && selUnit.move > 0){
+    var ud = UNITS[selUnit.type];
+    if (ud.range <= 1){
+      var nb = neighbors(selUnit);
+      for (var i = 0; i < nb.length; i++){
+        var t = tileAt(nb[i].q, nb[i].r);
+        if (!t || !canPass(selUnit, t)) continue;
+        if (t.unitId){
+          var ou = unitById(t.unitId);
+          if (ou.tribe !== selUnit.tribe) attack[key(t.q, t.r)] = true;
+        } else if (t.cityId){
+          var c = cityAt(t.q, t.r);
+          if (c.tribe !== selUnit.tribe) attack[key(t.q, t.r)] = true;
+          else reach[key(t.q, t.r)] = true;
+        } else reach[key(t.q, t.r)] = true;
+      }
+    } else {
+      for (var k in S.tiles){
+        var t2 = S.tiles[k];
+        if (hexDist(selUnit, t2) > ud.range) continue;
+        if (t2.unitId){
+          var ou2 = unitById(t2.unitId);
+          if (ou2.tribe !== selUnit.tribe) attack[key(t2.q, t2.r)] = true;
+        } else if (t2.cityId){
+          var c2 = cityAt(t2.q, t2.r);
+          if (c2.tribe !== selUnit.tribe) attack[key(t2.q, t2.r)] = true;
+        }
+      }
+    }
+  }
+  for (var k2 in S.tiles){
+    var t = S.tiles[k2];
+    var c = tileCenter(t);
+    var pts = hexCorners(c.x, c.y, s - 1);
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (var pi = 1; pi < 6; pi++) ctx.lineTo(pts[pi][0], pts[pi][1]);
+    ctx.closePath();
+    ctx.fillStyle = TERRAIN_COL[t.terrain];
+    ctx.fill();
+    if (t.owner){
+      var tr = tribeById(t.owner);
+      ctx.strokeStyle = tr ? tr.color : '#fff';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+    if (t.road){
+      ctx.fillStyle = 'rgba(121,85,72,0.85)';
+      var rp = hexCorners(c.x, c.y, s * 0.45);
+      ctx.beginPath();
+      ctx.moveTo(rp[0][0], rp[0][1]);
+      for (var ri = 1; ri < 6; ri++) ctx.lineTo(rp[ri][0], rp[ri][1]);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (reach[key(t.q, t.r)]){
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fill();
+    }
+    if (attack[key(t.q, t.r)]){
+      ctx.fillStyle = 'rgba(244,67,54,0.45)';
+      ctx.fill();
+    }
+    // موارد
+    if (t.resource && !t.harvested){
+      ctx.fillStyle = t.resource === 'fruit' ? '#ff7043' : t.resource === 'game' ? '#5d4037' : t.resource === 'fish' ? '#01579b' : '#616161';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y - s * 0.35, Math.max(3, s * 0.16), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (t.ruin){
+      ctx.fillStyle = '#37474f';
+      for (var pl = -1; pl <= 1; pl++) ctx.fillRect(c.x + pl * s * 0.3 - 2, c.y - s * 0.3, 4, s * 0.5);
+    }
+    if (t.village){
+      ctx.fillStyle = '#eceff1';
+      ctx.fillRect(c.x - s * 0.22, c.y - s * 0.1, s * 0.44, s * 0.34);
+      ctx.fillStyle = '#78909c';
+      ctx.beginPath();
+      ctx.moveTo(c.x - s * 0.3, c.y - s * 0.1);
+      ctx.lineTo(c.x, c.y - s * 0.42);
+      ctx.lineTo(c.x + s * 0.3, c.y - s * 0.1);
+      ctx.closePath();
+      ctx.fill();
+    }
+    if (t.cityId){
+      var city = cityAt(t.q, t.r);
+      var col = tribeById(city.tribe).color;
+      ctx.fillStyle = '#fff8e1';
+      ctx.fillRect(c.x - s * 0.3, c.y - s * 0.12, s * 0.6, s * 0.45);
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.moveTo(c.x - s * 0.4, c.y - s * 0.12);
+      ctx.lineTo(c.x, c.y - s * 0.55);
+      ctx.lineTo(c.x + s * 0.4, c.y - s * 0.12);
+      ctx.closePath();
+      ctx.fill();
+      if (city.capital){
+        ctx.strokeStyle = '#ffd54a';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, s * 0.62, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (city.wall){
+        ctx.strokeStyle = '#bcaaa4';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(c.x - s * 0.45, c.y - s * 0.2, s * 0.9, s * 0.6);
+      }
+    }
+  }
+  // الوحدات
+  for (var ui = 0; ui < S.units.length; ui++){
+    var u = S.units[ui];
+    var t = tileAt(u.q, u.r);
+    if (!t) continue;
+    var cc = tileCenter(t);
+    var col2 = tribeById(u.tribe).color;
+    ctx.beginPath();
+    ctx.arc(cc.x, cc.y + s * 0.25, Math.max(7, s * 0.34), 0, Math.PI * 2);
+    ctx.fillStyle = col2;
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = u.vet ? '#ffd54a' : '#ffffff';
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold ' + Math.max(11, s * 0.4) + 'px Tahoma';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(UNITS[u.type].letter, cc.x, cc.y + s * 0.27);
+  }
+  if (selTile){
+    var sc = tileCenter(selTile);
+    ctx.strokeStyle = '#ffd54a';
+    ctx.lineWidth = 3;
+    var sp = hexCorners(sc.x, sc.y, s - 1);
+    ctx.beginPath();
+    ctx.moveTo(sp[0][0], sp[0][1]);
+    for (var si = 1; si < 6; si++) ctx.lineTo(sp[si][0], sp[si][1]);
+    ctx.closePath();
+    ctx.stroke();
+  }
+}
+function showMsg(txt){
+  var m = document.getElementById('msg');
+  m.textContent = txt;
+  m.style.display = 'block';
+  setTimeout(function(){ m.style.display = 'none'; }, 2600);
+}
+function refreshUI(){
+  if (!S) return;
+  var ts = tribeState(S.player);
+  document.getElementById('stars').textContent = ts ? ts.stars : 0;
+  document.getElementById('turn').textContent = S.turn;
+  var tr = tribeById(S.player);
+  document.getElementById('tribeName').textContent = tr ? tr.name : '—';
+  var title = document.getElementById('panelTitle');
+  var body = document.getElementById('panelBody');
+  var acts = document.getElementById('panelActions');
+  acts.innerHTML = '';
+  function addBtn(txt, fn, dis){
+    var b = document.createElement('button');
+    b.textContent = txt;
+    if (dis) b.disabled = true;
+    b.onclick = fn;
+    acts.appendChild(b);
+  }
+  if (!S.selected){
+    title.textContent = 'قبائل السداسيات';
+    body.textContent = 'اضغط على خلية لعرضها، أو على وحدة من وحداتك لتحريكها. زر «إنهاء الدور» ينقل اللعب للذكاء الاصطناعي ثم يعود إليك بالدخل والنمو.';
+    return;
+  }
+  var t = tileAt(S.selected.q, S.selected.r);
+  if (!t){ title.textContent = 'خلية فارغة'; body.textContent = ''; return; }
+  var u = t.unitId ? unitById(t.unitId) : null;
+  var city = t.cityId ? cityAt(t.q, t.r) : null;
+  var lines = [];
+  lines.push('التضاريس: ' + TERRAIN_AR[t.terrain]);
+  if (t.owner) lines.push('المالك: ' + tribeById(t.owner).name);
+  if (t.resource && !t.harvested) lines.push('المورد: ' + RES_AR[t.resource]);
+  if (t.road) lines.push('يوجد طريق هنا');
+  if (t.ruin) lines.push('أطلال قابلة للاستكشاف');
+  if (t.village) lines.push('قرية محايدة — ادخلها بوحدة مشاة لتصبح مدينة لك');
+  if (city){
+    lines.push('مدينة (' + (city.capital ? 'عاصمة' : 'مدينة') + ') — مستوى ' + city.level + ' — سكان ' + city.pop + '/' + (city.level < 5 ? LEVEL_NEED[city.level] : 'الأعلى'));
+    lines.push('دخلها كل دور: ' + cityIncome(city) + ' نجوم' + (city.connected && !city.capital ? ' (متصلة بالعاصمة)' : ''));
+    if (city.wall) lines.push('محمية بسور');
+  }
+  if (u){
+    var ud = UNITS[u.type];
+    lines.push('الوحدة: ' + ud.name + ' (' + tribeById(u.tribe).name + ') — هجوم ' + unitAtk(u) + '، دفاع ' + unitDef(u) + '، مدى ' + ud.range + '، حركة متبقية ' + u.move + (u.vet ? '، مخضرمة' : ''));
+  }
+  title.textContent = city ? ('مدينة ' + (city.capital ? 'العاصمة' : '')) : (u ? ud.name : (t.village ? 'قرية محايدة' : 'خلية'));
+  body.innerHTML = lines.join('<br>');
+  if (u && u.tribe === S.player && u.move > 0){
+    body.innerHTML += '<br>اضغط على خلية مجاورة مضيئة للتحرك أو الهجوم' + (UNITS[u.type].range > 1 ? '، أو على عدو ضمن المدى للرماية' : '') + '.';
+  }
+  if (city && city.tribe === S.player){
+    for (var k3 in UNITS){
+      (function(typeId){
+        var uu = UNITS[typeId];
+        if (uu.tech && ts.techs.indexOf(uu.tech) < 0) return;
+        addBtn('درّب ' + uu.name + ' (' + uu.cost + '⭐)', function(){
+          if (trainUnit(city, typeId)) showMsg('تم تدريب ' + uu.name);
+          else showMsg('لا يمكن التدريب هنا الآن');
+        }, ts.stars < uu.cost);
+      })(k3);
+    }
+  }
+  if (t.resource && !t.harvested && t.owner === S.player){
+    var need = {fruit: 'farm', game: 'hunt', fish: 'fish', ore: 'mine'}[t.resource];
+    addBtn('احصد ' + RES_AR[t.resource], function(){
+      if (harvestTile(t)) showMsg('تم الحصاد: +' + (tribeById(S.player).bonus === t.resource ? 2 : 1) + ' سكان');
+      else showMsg('تحتاج تقنية ' + techById(need).name);
+    }, ts.techs.indexOf(need) < 0);
+  }
+  if (t.owner === S.player && !t.road && !t.cityId && t.terrain !== 'water' && t.terrain !== 'mountain'){
+    addBtn('ابنِ طريقاً (3⭐)', function(){
+      if (buildRoad(t)) showMsg('تم بناء الطريق');
+      else showMsg('تحتاج تقنية الطرق و3 نجوم');
+    }, ts.techs.indexOf('roads') < 0 || ts.stars < 3);
+  }
+}
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+function renderTech(){
+  var ts = tribeState(S.player);
+  var el = document.getElementById('techList');
+  el.innerHTML = '';
+  for (var i = 0; i < TECHS.length; i++){
+    var t = TECHS[i];
+    var owned = ts.techs.indexOf(t.id) >= 0;
+    var reqOk = !t.req || ts.techs.indexOf(t.req) >= 0;
+    var cost = Math.max(0, t.cost - (ts.discount || 0));
+    var div = document.createElement('div');
+    div.className = 'tech' + (owned ? ' done' : '');
+    var left = document.createElement('div');
+    left.innerHTML = '<b>' + t.name + '</b><br><span style="font-size:13px">' + t.desc + (t.req ? ' (يتطلب ' + techById(t.req).name + ')' : '') + '</span>';
+    var right = document.createElement('div');
+    if (owned) right.textContent = 'ممتلكة';
+    else {
+      var b = document.createElement('button');
+      b.textContent = 'بحث (' + cost + '⭐)';
+      b.disabled = !reqOk || ts.stars < cost;
+      (function(tid){ b.onclick = function(){ if (researchTech(tid)){ renderTech(); } else { showMsg('لا يمكن البحث الآن'); } }; })(t.id);
+      right.appendChild(b);
+    }
+    div.appendChild(left);
+    div.appendChild(right);
+    el.appendChild(div);
+  }
+}
+function centerCamera(){
+  if (!cv || !S) return;
+  var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+  for (var k in S.tiles){
+    var t = S.tiles[k];
+    var c = tileCenter(t);
+    if (c.x < minX) minX = c.x;
+    if (c.x > maxX) maxX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.y > maxY) maxY = c.y;
+  }
+  var vw = cv.clientWidth || cv.width;
+  var vh = cv.clientHeight || cv.height;
+  cam.x = vw / 2 - (minX + maxX) / 2;
+  cam.y = vh / 2 - (minY + maxY) / 2;
+}
+function resizeCanvas(){
+  var wrap = document.getElementById('wrap');
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = wrap.clientWidth * dpr;
+  cv.height = wrap.clientHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cv.style.width = wrap.clientWidth + 'px';
+  cv.style.height = wrap.clientHeight + 'px';
+  // إعادة ضبط الكاميرا بنفس المقياس المرئي
+  var s = HEX * cam.zoom;
+  void s;
+  draw();
+}
+function onTap(px, py){
+  if (!S || S.over) return;
+  var rect = cv.getBoundingClientRect();
+  var hx = pixelToHex(px - rect.left, py - rect.top);
+  var t = tileAt(hx.q, hx.r);
+  if (!t) return;
+  var selUnit = S.selUnit ? unitById(S.selUnit) : null;
+  if (selUnit && selUnit.tribe === S.player && selUnit.move > 0){
+    var ud = UNITS[selUnit.type];
+    if (ud.range > 1 && hexDist(selUnit, t) <= ud.range && (t.unitId || t.cityId)){
+      var tu = t.unitId ? unitById(t.unitId) : null;
+      var tc = t.cityId ? cityAt(t.q, t.r) : null;
+      if ((!tu || tu.tribe !== S.player) && (!tc || tc.tribe !== S.player)){
+        if (tryRangedAttack(selUnit, t)){ S.selected = {q: t.q, r: t.r}; S.selUnit = null; refreshUI(); draw(); return; }
+      }
+    }
+    if (hexDist(selUnit, t) === 1){
+      var before = S.units.length;
+      if (tryMoveUnit(selUnit, t)){
+        S.selected = {q: t.q, r: t.r};
+        S.selUnit = null;
+        refreshUI(); draw();
+        return;
+      }
+      void before;
+    }
+  }
+  S.selected = {q: t.q, r: t.r};
+  if (t.unitId){
+    var uu = unitById(t.unitId);
+    if (uu.tribe === S.player) S.selUnit = uu.id;
+    else S.selUnit = null;
+  } else S.selUnit = null;
+  refreshUI();
+  draw();
+}
+function newGameFromUI(){
+  closeModal('endModal');
+  closeModal('startModal');
+  openModal('startModal');
+  buildStartScreen();
+}
+function buildStartScreen(){
+  var list = document.getElementById('tribeList');
+  list.innerHTML = '';
+  var sel = window._selTribe || 'palm';
+  TRIBES.forEach(function(tr){
+    var d = document.createElement('div');
+    d.className = 'tribe' + (sel === tr.id ? ' sel' : '');
+    d.innerHTML = '<div class="dot" style="background:' + tr.color + '"></div><div><b>' + tr.name + '</b><br><span style="font-size:13px">يبدأ بتقنية ' + techById(tr.tech).name + ' — ' + tr.bonusDesc + '</span></div>';
+    d.onclick = function(){ window._selTribe = tr.id; buildStartScreen(); };
+    list.appendChild(d);
+  });
+  var diff = window._selDiff || 'normal';
+  document.getElementById('btnDiffNormal').style.outline = diff === 'normal' ? '3px solid #ffd54a' : 'none';
+  document.getElementById('btnDiffHard').style.outline = diff === 'hard' ? '3px solid #ffd54a' : 'none';
+  document.getElementById('btnContinue').style.display = loadGame() ? 'block' : 'none';
+}
+if (typeof document !== 'undefined'){
+  cv = document.getElementById('cv');
+  ctx = cv.getContext('2d');
+  window._selTribe = 'palm';
+  window._selDiff = 'normal';
+  document.getElementById('btnDiffNormal').onclick = function(){ window._selDiff = 'normal'; buildStartScreen(); };
+  document.getElementById('btnDiffHard').onclick = function(){ window._selDiff = 'hard'; buildStartScreen(); };
+  document.getElementById('btnStart').onclick = function(){
+    newGame(window._selTribe, window._selDiff);
+    closeModal('startModal');
+    resizeCanvas();
+    centerCamera();
+    refreshUI();
+    draw();
+  };
+  document.getElementById('btnContinue').onclick = function(){
+    var d = loadGame();
+    if (!d) return;
+    S = d;
+    startTribeTurn(S.player);
+    closeModal('startModal');
+    resizeCanvas();
+    centerCamera();
+    refreshUI();
+    draw();
+  };
+  document.getElementById('btnEnd').onclick = function(){ endTurn(); };
+  document.getElementById('btnTech').onclick = function(){ renderTech(); openModal('techModal'); };
+  document.getElementById('btnHelp').onclick = function(){ openModal('helpModal'); };
+  document.getElementById('btnZoomIn').onclick = function(){ cam.zoom = Math.min(2.2, cam.zoom + 0.2); draw(); };
+  document.getElementById('btnZoomOut').onclick = function(){ cam.zoom = Math.max(0.5, cam.zoom - 0.2); draw(); };
+  cv.addEventListener('pointerdown', function(e){
+    cv.setPointerCapture(e.pointerId);
+    pointers[e.pointerId] = {x: e.clientX, y: e.clientY};
+    downPos = {x: e.clientX, y: e.clientY};
+    dragged = false;
+    if (Object.keys(pointers).length === 2){
+      var ks = Object.keys(pointers);
+      lastPinch = Math.hypot(pointers[ks[0]].x - pointers[ks[1]].x, pointers[ks[0]].y - pointers[ks[1]].y);
+    }
+  });
+  cv.addEventListener('pointermove', function(e){
+    if (!pointers[e.pointerId]) return;
+    var prev = pointers[e.pointerId];
+    pointers[e.pointerId] = {x: e.clientX, y: e.clientY};
+    var ks = Object.keys(pointers);
+    if (ks.length === 2){
+      var d = Math.hypot(pointers[ks[0]].x - pointers[ks[1]].x, pointers[ks[0]].y - pointers[ks[1]].y);
+      if (lastPinch > 0){
+        var f = d / lastPinch;
+        cam.zoom = Math.max(0.5, Math.min(2.2, cam.zoom * f));
+        draw();
+      }
+      lastPinch = d;
+      dragged = true;
+      return;
+    }
+    var dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    if (downPos && Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 8) dragged = true;
+    if (dragged){ cam.x += dx; cam.y += dy; draw(); }
+  });
+  function endPointer(e){
+    if (pointers[e.pointerId]) delete pointers[e.pointerId];
+    if (Object.keys(pointers).length < 2) lastPinch = 0;
+    if (!dragged && downPos) onTap(e.clientX, e.clientY);
+    downPos = null;
+    dragged = false;
+  }
+  cv.addEventListener('pointerup', endPointer);
+  cv.addEventListener('pointercancel', endPointer);
+  cv.addEventListener('wheel', function(e){
+    e.preventDefault();
+    cam.zoom = Math.max(0.5, Math.min(2.2, cam.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+    draw();
+  }, {passive: false});
+  window.addEventListener('resize', resizeCanvas);
+  buildStartScreen();
+  resizeCanvas();
+  openModal('startModal');
+}
+if (typeof globalThis !== 'undefined'){
+  globalThis.TribesGame = {
+    newGame: newGame, generateMap: generateMap, resolveCombat: resolveCombat,
+    researchTech: researchTech, trainUnit: trainUnit, harvestTile: harvestTile,
+    buildRoad: buildRoad, aiTakeTurn: aiTakeTurn, endTurn: endTurn, growTribe: growTribe,
+    captureCity: captureCity, cityIncome: cityIncome, computeScore: computeScore,
+    TRIBES: TRIBES, TECHS: TECHS, UNITS: UNITS,
+    getState: function(){ return S; }
+  };
+}
+</script>
+</body>
+</html>
