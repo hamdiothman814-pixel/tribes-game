@@ -46,6 +46,7 @@ button:disabled{opacity:.45;cursor:default}
 <span class="spacer"></span>
 <button class="secondary" id="btnTech">التقنيات</button>
 <button class="secondary" id="btnHelp">مساعدة</button>
+<button class="secondary" id="btnMute">🔊</button>
 <button id="btnEnd">إنهاء الدور</button>
 </div>
 <div id="wrap"><canvas id="cv"></canvas></div>
@@ -86,6 +87,7 @@ button:disabled{opacity:.45;cursor:default}
 <li><b>الطرق:</b> ابنِ طريقاً على أرضك (3 نجوم)؛ أي مدينة متصلة بالعاصمة بسلسلة طرق تكسب +1 نجمة كل دور.</li>
 <li><b>الوحدات البحرية</b> تتحرك في الماء فقط، والبرية في البر فقط، والجبال لا تُعبَر.</li>
 <li><b>الأطلال:</b> ادخلها بوحدة مشاة لتحصل على مكافأة عشوائية: نجوم أو سكان أو خصم على التقنية القادمة.</li>
+<li><b>الصوت:</b> تحرك الوحدات والهجمات لها أصوات وحركة مرئية، وموسيقى هادئة تعمل أثناء اللعب. زر السماعة في الأعلى يكتم كل الصوت.</li>
 </ul>
 <div style="text-align:center"><button class="secondary" onclick="closeModal('techModal');closeModal('helpModal')">إغلاق</button></div>
 </div></div>
@@ -863,6 +865,7 @@ function showNextLevel(){
     var b = document.createElement('button');
     b.textContent = o.name + ' — ' + o.desc;
     b.onclick = function(){
+      playSound('level');
       applyLevelReward(c, o.id);
       closeModal('levelModal');
       if (S.pendingLevels.length) showNextLevel();
@@ -873,6 +876,7 @@ function showNextLevel(){
   openModal('levelModal');
 }
 function showEnd(win){
+  playSound(win ? 'win' : 'lose');
   var t = document.getElementById('endTitle');
   var x = document.getElementById('endText');
   var sc = computeScore(S.player);
@@ -911,6 +915,91 @@ var downPos = null, dragged = false, lastPinch = 0;
 var TERRAIN_AR = {water: 'ماء', plains: 'سهل', forest: 'غابة', mountain: 'جبل'};
 var RES_AR = {fruit: 'فاكهة', game: 'طرائد', fish: 'سمك', ore: 'خام'};
 var TERRAIN_COL = {water: '#4a90d9', plains: '#9ccc65', forest: '#43a047', mountain: '#90a4ae'};
+
+/* ============ الصوت والحركة (إضافة أصلية، لا تغيّر قواعد اللعبة) ============ */
+var muted = false;
+try{ if (typeof localStorage !== 'undefined' && localStorage.getItem('tribes_mute_v1') === '1') muted = true; }catch(e){}
+var actx = null, musicTimer = null, musicStep = 0;
+function ensureAudio(){
+  if (typeof window === 'undefined') return null;
+  if (!actx){
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    actx = new AC();
+  }
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
+function tone(freq, dur, type, vol, when, slideTo){
+  if (muted) return;
+  var ac = ensureAudio(); if (!ac) return;
+  var t0 = ac.currentTime + (when || 0);
+  var o = ac.createOscillator(), g = ac.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol || 0.15, t0 + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function playSound(name){
+  if (muted) return;
+  if (name === 'move'){ tone(440, 0.09, 'sine', 0.12, 0, 660); }
+  else if (name === 'attack'){ tone(180, 0.12, 'square', 0.12, 0, 90); tone(90, 0.15, 'triangle', 0.15, 0.02); }
+  else if (name === 'ranged'){ tone(880, 0.12, 'sawtooth', 0.08, 0, 220); }
+  else if (name === 'capture'){ tone(523, 0.12, 'triangle', 0.14); tone(659, 0.12, 'triangle', 0.14, 0.1); tone(784, 0.2, 'triangle', 0.14, 0.2); }
+  else if (name === 'train'){ tone(988, 0.1, 'sine', 0.12); tone(1319, 0.15, 'sine', 0.12, 0.08); }
+  else if (name === 'harvest'){ tone(659, 0.1, 'triangle', 0.12); tone(880, 0.14, 'triangle', 0.12, 0.07); }
+  else if (name === 'road'){ tone(140, 0.1, 'square', 0.1); tone(110, 0.12, 'square', 0.1, 0.08); }
+  else if (name === 'tech'){ tone(523, 0.1, 'sine', 0.12); tone(659, 0.1, 'sine', 0.12, 0.09); tone(880, 0.18, 'sine', 0.12, 0.18); }
+  else if (name === 'level'){ tone(523, 0.12, 'triangle', 0.14); tone(659, 0.12, 'triangle', 0.14, 0.1); tone(784, 0.12, 'triangle', 0.14, 0.2); tone(1047, 0.25, 'triangle', 0.14, 0.3); }
+  else if (name === 'turn'){ tone(392, 0.15, 'sine', 0.1); tone(523, 0.2, 'sine', 0.1, 0.1); }
+  else if (name === 'win'){ [523,659,784,1047].forEach(function(f,i){ tone(f, 0.25, 'triangle', 0.14, i*0.14); }); }
+  else if (name === 'lose'){ [392,330,262,196].forEach(function(f,i){ tone(f, 0.3, 'triangle', 0.12, i*0.18); }); }
+  else if (name === 'click'){ tone(700, 0.05, 'sine', 0.07); }
+}
+var MUSIC_NOTES = [523, 587, 659, 784, 659, 587, 523, 440, 523, 659, 784, 880, 784, 659, 587, 523];
+function startMusic(){
+  if (typeof window === 'undefined' || musicTimer) return;
+  if (!ensureAudio()) return;
+  musicStep = 0;
+  musicTimer = setInterval(function(){
+    if (muted) return;
+    var n = MUSIC_NOTES[musicStep % MUSIC_NOTES.length];
+    tone(n, 0.38, 'triangle', 0.045);
+    if (musicStep % 4 === 0) tone(n / 2, 0.7, 'sine', 0.04);
+    musicStep++;
+  }, 400);
+}
+function stopMusic(){ if (musicTimer){ clearInterval(musicTimer); musicTimer = null; } }
+function setMuted(m){
+  muted = m;
+  try{ if (typeof localStorage !== 'undefined') localStorage.setItem('tribes_mute_v1', m ? '1' : '0'); }catch(e){}
+  if (typeof document !== 'undefined'){
+    var b = document.getElementById('btnMute');
+    if (b) b.textContent = m ? '🔇' : '🔊';
+  }
+  if (m) stopMusic(); else startMusic();
+}
+var moveAnim = null, flashes = [];
+function startMoveAnim(unitId, fromTile, toTile){
+  if (typeof document === 'undefined' || !ctx) return;
+  var a = tileCenter(fromTile), b = tileCenter(toTile);
+  moveAnim = {unitId: unitId, x0: a.x, y0: a.y, x1: b.x, y1: b.y, t0: Date.now(), dur: 220};
+  (function frame(){
+    if (!moveAnim) return;
+    var p = (Date.now() - moveAnim.t0) / moveAnim.dur;
+    if (p >= 1){ moveAnim = null; draw(); return; }
+    draw();
+    requestAnimationFrame(frame);
+  })();
+}
+function addFlash(tile, color){
+  if (typeof document === 'undefined') return;
+  flashes.push({q: tile.q, r: tile.r, color: color || '#f44336', t0: Date.now(), dur: 450});
+}
+
 function hexCorners(cx, cy, s){
   var pts = [];
   for (var i = 0; i < 6; i++){
@@ -1057,12 +1146,35 @@ function draw(){
       }
     }
   }
+  // ومضات الهجوم
+  if (flashes.length){
+    var fnow = Date.now();
+    flashes = flashes.filter(function(f){ return (fnow - f.t0) < f.dur; });
+    for (var fi = 0; fi < flashes.length; fi++){
+      var fl = flashes[fi];
+      var ft = tileAt(fl.q, fl.r);
+      if (!ft) continue;
+      var fc = tileCenter(ft);
+      var age = (fnow - fl.t0) / fl.dur;
+      ctx.strokeStyle = fl.color;
+      ctx.globalAlpha = (1 - age) * 0.9;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(fc.x, fc.y, s * (0.4 + age * 0.6), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
   // الوحدات
   for (var ui = 0; ui < S.units.length; ui++){
     var u = S.units[ui];
     var t = tileAt(u.q, u.r);
     if (!t) continue;
     var cc = tileCenter(t);
+    if (moveAnim && moveAnim.unitId === u.id){
+      var ap = Math.min(1, (Date.now() - moveAnim.t0) / moveAnim.dur);
+      cc = {x: moveAnim.x0 + (moveAnim.x1 - moveAnim.x0) * ap, y: moveAnim.y0 + (moveAnim.y1 - moveAnim.y0) * ap};
+    }
     var col2 = tribeById(u.tribe).color;
     ctx.beginPath();
     ctx.arc(cc.x, cc.y + s * 0.25, Math.max(7, s * 0.34), 0, Math.PI * 2);
@@ -1149,7 +1261,7 @@ function refreshUI(){
         var uu = UNITS[typeId];
         if (uu.tech && ts.techs.indexOf(uu.tech) < 0) return;
         addBtn('درّب ' + uu.name + ' (' + uu.cost + '⭐)', function(){
-          if (trainUnit(city, typeId)) showMsg('تم تدريب ' + uu.name);
+          if (trainUnit(city, typeId)){ playSound('train'); showMsg('تم تدريب ' + uu.name); }
           else showMsg('لا يمكن التدريب هنا الآن');
         }, ts.stars < uu.cost);
       })(k3);
@@ -1158,13 +1270,13 @@ function refreshUI(){
   if (t.resource && !t.harvested && t.owner === S.player){
     var need = {fruit: 'farm', game: 'hunt', fish: 'fish', ore: 'mine'}[t.resource];
     addBtn('احصد ' + RES_AR[t.resource], function(){
-      if (harvestTile(t)) showMsg('تم الحصاد: +' + (tribeById(S.player).bonus === t.resource ? 2 : 1) + ' سكان');
+      if (harvestTile(t)){ playSound('harvest'); showMsg('تم الحصاد: +' + (tribeById(S.player).bonus === t.resource ? 2 : 1) + ' سكان'); }
       else showMsg('تحتاج تقنية ' + techById(need).name);
     }, ts.techs.indexOf(need) < 0);
   }
   if (t.owner === S.player && !t.road && !t.cityId && t.terrain !== 'water' && t.terrain !== 'mountain'){
     addBtn('ابنِ طريقاً (3⭐)', function(){
-      if (buildRoad(t)) showMsg('تم بناء الطريق');
+      if (buildRoad(t)){ playSound('road'); showMsg('تم بناء الطريق'); }
       else showMsg('تحتاج تقنية الطرق و3 نجوم');
     }, ts.techs.indexOf('roads') < 0 || ts.stars < 3);
   }
@@ -1190,7 +1302,7 @@ function renderTech(){
       var b = document.createElement('button');
       b.textContent = 'بحث (' + cost + '⭐)';
       b.disabled = !reqOk || ts.stars < cost;
-      (function(tid){ b.onclick = function(){ if (researchTech(tid)){ renderTech(); } else { showMsg('لا يمكن البحث الآن'); } }; })(t.id);
+      (function(tid){ b.onclick = function(){ if (researchTech(tid)){ playSound('tech'); renderTech(); } else { showMsg('لا يمكن البحث الآن'); } }; })(t.id);
       right.appendChild(b);
     }
     div.appendChild(left);
@@ -1240,18 +1352,25 @@ function onTap(px, py){
       var tu = t.unitId ? unitById(t.unitId) : null;
       var tc = t.cityId ? cityAt(t.q, t.r) : null;
       if ((!tu || tu.tribe !== S.player) && (!tc || tc.tribe !== S.player)){
-        if (tryRangedAttack(selUnit, t)){ S.selected = {q: t.q, r: t.r}; S.selUnit = null; refreshUI(); draw(); return; }
+        if (tryRangedAttack(selUnit, t)){ playSound('ranged'); addFlash(t, '#ff7043'); S.selected = {q: t.q, r: t.r}; S.selUnit = null; refreshUI(); draw(); return; }
       }
     }
     if (hexDist(selUnit, t) === 1){
-      var before = S.units.length;
+      var fromTile = {q: selUnit.q, r: selUnit.r};
+      var hadEnemy = !!(t.unitId || (t.cityId && cityAt(t.q, t.r).tribe !== S.player));
+      var cityBefore = t.cityId ? cityAt(t.q, t.r).tribe : null;
+      startMoveAnim(selUnit.id, fromTile, t);
       if (tryMoveUnit(selUnit, t)){
+        if (cityBefore && cityBefore !== S.player && t.cityId && cityAt(t.q, t.r).tribe === S.player) playSound('capture');
+        else if (hadEnemy){ playSound('attack'); addFlash(t, '#f44336'); }
+        else playSound('move');
         S.selected = {q: t.q, r: t.r};
         S.selUnit = null;
         refreshUI(); draw();
         return;
       }
-      void before;
+      moveAnim = null;
+      draw();
     }
   }
   S.selected = {q: t.q, r: t.r};
@@ -1293,6 +1412,7 @@ if (typeof document !== 'undefined'){
   document.getElementById('btnDiffNormal').onclick = function(){ window._selDiff = 'normal'; buildStartScreen(); };
   document.getElementById('btnDiffHard').onclick = function(){ window._selDiff = 'hard'; buildStartScreen(); };
   document.getElementById('btnStart').onclick = function(){
+    ensureAudio(); startMusic(); playSound('click');
     newGame(window._selTribe, window._selDiff);
     closeModal('startModal');
     resizeCanvas();
@@ -1301,6 +1421,7 @@ if (typeof document !== 'undefined'){
     draw();
   };
   document.getElementById('btnContinue').onclick = function(){
+    ensureAudio(); startMusic(); playSound('click');
     var d = loadGame();
     if (!d) return;
     S = d;
@@ -1311,12 +1432,14 @@ if (typeof document !== 'undefined'){
     refreshUI();
     draw();
   };
-  document.getElementById('btnEnd').onclick = function(){ endTurn(); };
+  document.getElementById('btnEnd').onclick = function(){ playSound('turn'); endTurn(); };
   document.getElementById('btnTech').onclick = function(){ renderTech(); openModal('techModal'); };
   document.getElementById('btnHelp').onclick = function(){ openModal('helpModal'); };
+  document.getElementById('btnMute').onclick = function(){ ensureAudio(); setMuted(!muted); };
   document.getElementById('btnZoomIn').onclick = function(){ cam.zoom = Math.min(2.2, cam.zoom + 0.2); draw(); };
   document.getElementById('btnZoomOut').onclick = function(){ cam.zoom = Math.max(0.5, cam.zoom - 0.2); draw(); };
   cv.addEventListener('pointerdown', function(e){
+    ensureAudio();
     cv.setPointerCapture(e.pointerId);
     pointers[e.pointerId] = {x: e.clientX, y: e.clientY};
     downPos = {x: e.clientX, y: e.clientY};
@@ -1361,6 +1484,8 @@ if (typeof document !== 'undefined'){
     draw();
   }, {passive: false});
   window.addEventListener('resize', resizeCanvas);
+  var mb = document.getElementById('btnMute');
+  if (mb) mb.textContent = muted ? '🔇' : '🔊';
   buildStartScreen();
   resizeCanvas();
   openModal('startModal');
