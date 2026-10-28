@@ -19,6 +19,7 @@ standalone.
   CC0): KayKit Knight.
 - **Polygonal Mind** (via the same free listing; CC0): Robot, Zombie 44.
 - **isalousberg** (via the same free listing; CC0): Homely House.
+- **Low-poly Samurai with animations** (https://opengameart.org/content/3d-lowpoly-samurai-with-animations-fbx-format — CC-BY 4.0, attribution required): the Japanese tribe's signature warrior (Samurai.glb, converted from the author's FBX with its texture embedded).
 
 Models are loaded lazily: a model file is only downloaded the first time
 its unit or terrain type appears in a game, never all upfront.
